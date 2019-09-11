@@ -88,7 +88,9 @@ repositories.
        (if forge-pull-notifications
            (forge--pull-notifications (eieio-object-class repo)
                                       (oref repo githost)
-                                      (lambda () (forge--git-fetch buf dir repo)))
+                                      (lambda () (forge--git-fetch buf dir repo))
+                                      (oref repo owner)
+                                      (oref repo name))
          (forge--git-fetch buf dir repo)))
      `((issues-until       . ,(forge--topics-until repo until 'issue))
        (pullRequests-until . ,(forge--topics-until repo until 'pullreq)))
@@ -296,7 +298,7 @@ repositories.
 ;;;; Notifications
 
 (cl-defmethod forge--pull-notifications
-  ((_class (subclass forge-github-repository)) githost &optional callback)
+  ((_class (subclass forge-github-repository)) githost &optional callback owner name)
   ;; The GraphQL API doesn't support notifications and also likes to
   ;; timeout for handcrafted requests, forcing us to perform a major
   ;; rain dance.
@@ -314,9 +316,15 @@ repositories.
                           (with-demoted-errors "forge--pull-notifications: %S"
                             (forge--ghub-massage-notification
                              data forge githost)))
-                        (forge--ghub-get nil "/notifications"
-                                         '((all . "true"))
-                                         :host apihost :unpaginate t)))
+                        (if (and owner name)
+                            (forge--ghub-get nil (format "/repos/%s/%s/notifications"
+                                                         owner
+                                                         name) 
+                                             '((all . "true"))
+                                             :host apihost :unpaginate t)
+                          (forge--ghub-get nil "/notifications" 
+                                           '((all . "true"))
+                                           :host apihost :unpaginate t))))
          (groups (-partition-all 100 notifs))
          (pages  (length groups))
          (page   0)
